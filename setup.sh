@@ -10,6 +10,9 @@ case "$(uname -a)" in
 esac
 
 MODULES=(bin emacs mpv tmux vim zsh)
+if [ "$os" != "osx" ]; then
+    MODULES+=(x11)
+fi
 
 # Install prerequisite packages
 if [ "$OS" == "ubuntu" ]; then
