@@ -119,10 +119,6 @@ alias rm='rm -i'
 
 alias fuck='sudo $(fc -ln -1)'
 
-if type nvim > /dev/null 2>&1; then
-    alias vim='nvim'
-fi
-
 # Misc zsh setup
 zstyle ':completion:*' special-dirs true
 zstyle ':completion:*:*' ignored-patterns '*ORIG_HEAD'
