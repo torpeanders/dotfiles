@@ -1,0 +1,44 @@
+#! /usr/bin/perl
+
+use strict;
+use POSIX;
+use Getopt::Long qw(GetOptionsFromString);
+
+my $opt_color = '#ffff88';
+my $opt_full = q{%F %H:%M<span color='#ffffff'>:%S</span>};
+my $opt_short = q{%H:%M<span color='#ffffff'>:%S</span>};
+
+GetOptionsFromString($ENV{BLOCK_INSTANCE},
+		     "color=s" => \$opt_color,
+		     "full=s" => \$opt_full,
+		     "short=s" => \$opt_short,
+		    );
+
+#remember to autoflush
+$| = 1;
+
+my %json = ( color => $opt_color,
+	     # urgent => "true",
+	     markup => "pango",
+	   );
+
+while (1) {
+    printf "%s\n",
+      json(%json,
+	   full_text => strftime($opt_full, localtime),
+	   short_text => strftime($opt_short, localtime),
+	  );
+    sleep 1;
+}
+
+exit 0;
+
+sub json {
+    my(%json) = @_;
+    for (values %json) {
+	s/"/\\"/g;
+	s/\n/\\n/g;
+	$_ = qq{"$_"} if /\D/;
+    }
+    return "{".join(",",map {qq{"$_":$json{$_}}} sort keys %json)."}";
+}

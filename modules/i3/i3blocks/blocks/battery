@@ -1,0 +1,345 @@
+#! /usr/bin/perl -CASDL
+
+use strict;
+use utf8;
+
+use POSIX;
+use File::Glob ':bsd_glob';
+use Getopt::Long qw(GetOptionsFromString :config bundling no_ignore_case);
+
+use Data::Dumper;
+$Data::Dumper::Sortkeys = $Data::Dumper::Indent = 1;
+
+unless (chdir "/sys/class/power_supply") {
+    exit 1;
+}
+
+#GetOptionsFromString($ENV{BLOCK_INSTANCE},
+#		    );
+
+my %state;
+my %cell;
+
+# Find all batteries
+for my $ps (glob "*") {
+    my($ps_fh,$d);
+    my $kl = 0;
+
+    open $ps_fh, "<", "$ps/type";
+    while (<$ps_fh>) {
+	chomp;
+	$d->{TYPE} = $_;
+	last;
+    }
+    close $ps_fh;
+
+    open $ps_fh, "<", "$ps/uevent";
+    while (<$ps_fh>) {
+	chomp;
+	if (/^([^=]*)=(.*)/) {
+	    $d->{$1} = $2;
+	    $kl = length $1 if $kl < length $1;
+	}
+    }
+    close $ps_fh;
+
+    if ($d->{TYPE} eq 'Mains') {
+	$state{ONLINE} = $d->{POWER_SUPPLY_ONLINE} ? 1 : 0;
+    }
+    elsif ($d->{TYPE} eq 'Battery') {
+	# ENERGY (µWh), POWER (µW), CHARGE (µAh), CURRENT (µA)
+
+	my($cap_t, $use_t);
+	if (exists $d->{POWER_SUPPLY_POWER_NOW}) {
+	    $cap_t = 'ENERGY';
+	    $use_t = 'POWER';
+	}
+	elsif (exists $d->{POWER_SUPPLY_CURRENT_NOW}) {
+	    $cap_t = 'CHARGE';
+	    $use_t = 'CURRENT';
+	}
+	elsif (exists $d->{POWER_SUPPLY_CAPACITY}) {
+	    $cap_t = 'CAPACITY';
+	    $d->{"POWER_SUPPLY_CAPACITY_NOW"} = $d->{POWER_SUPPLY_CAPACITY};
+	    $d->{"POWER_SUPPLY_CAPACITY_FULL"} = 100;
+	    $d->{"POWER_SUPPLY_CAPACITY_FULL_DESIGN"} = 100;
+	}
+	else {
+	    # No current or power rating present? then we skip this battery
+	    next;
+	}
+
+	my $c = $cell{$ps} ||= {};
+
+	# Just to make sure things are sane
+	if ($d->{"POWER_SUPPLY_${cap_t}_FULL"} < $d->{"POWER_SUPPLY_${cap_t}_NOW"}) {
+	    $c->{"${cap_t}_FULL_ORIG"} = $d->{"POWER_SUPPLY_${cap_t}_FULL"};
+	    $d->{"POWER_SUPPLY_${cap_t}_FULL"} = $d->{"POWER_SUPPLY_${cap_t}_NOW"};
+	}
+
+	for (qw(STATUS NAME MODEL_NAME SCOPE)) {
+	    $c->{$_} = $d->{"POWER_SUPPLY_$_"};
+	}
+
+	$c->{_dev} = 1 if $c->{SCOPE} eq 'Device';
+
+	for (qw(FULL FULL_DESIGN NOW)) {
+	    $c->{"CAP_$_"} = $d->{"POWER_SUPPLY_${cap_t}_$_"};
+	    $cell{"_TOTAL"}{"CAP_$_"} += $c->{"CAP_$_"}
+	      unless $c->{_dev};
+	}
+
+	if ($d->{POWER_SUPPLY_STATUS} eq 'Discharging') {
+	    $c->{_discharging} = 1;
+	    $c->{"USE_NOW"} = -$d->{"POWER_SUPPLY_${use_t}_NOW"};
+	    $cell{"_TOTAL"}{"USE_NOW"} += $c->{"USE_NOW"}
+	      unless $c->{_dev};
+	}
+	elsif ($d->{POWER_SUPPLY_STATUS} eq 'Charging') {
+	    $c->{_charging} = 1;
+	    $c->{"USE_NOW"} = $d->{"POWER_SUPPLY_${use_t}_NOW"};
+	    $cell{"_TOTAL"}{"USE_NOW"} += $c->{"USE_NOW"}
+	      unless $c->{_dev};
+	}
+
+	if ($c->{NAME} =~ /^sony_controller_/) {
+	    $c->{type_icon} = "\x{e230} "; # fa-playstation
+	    # Playstation Blue = Celtic Blue
+	    # https://www.schemecolor.com/playstation-logo-colors.php
+	    $c->{type_color} = "#2e6db4";
+	}
+	elsif ($c->{MODEL_NAME} =~ /mouse/i) {
+	    $c->{type_icon} = "\x{f87c} "; # nf-mdi-mouse
+	    $c->{type_color} = "#ffffff";
+	}
+    }
+}
+
+# Calculate time strings for all cells
+for my $c (values %cell) {
+    my $cap_t = $c->{_CAP};
+
+    $c->{CAP_MAX} = $c->{CAP_FULL}; # or ENERGY_FULL_DESIGN
+
+    if ($c->{CAP_MAX}) {
+	$c->{PERCENT} = 100 * $c->{CAP_NOW} / $c->{CAP_MAX};
+    }
+
+    if ($c->{USE_NOW}) {
+
+	if ($c->{USE_NOW} > 0) {
+	    $c->{_charging}++;
+	    $c->{CAP_LEFT} = $c->{CAP_MAX} - $c->{CAP_NOW};
+	}
+	elsif ($c->{USE_NOW} < 0) {
+	    $c->{_discharging}++;
+	    $c->{CAP_LEFT} = $c->{CAP_NOW};
+	}
+
+	# in hours
+	my $tl = $c->{TIME_LEFT} = $c->{CAP_LEFT} / abs($c->{USE_NOW});
+
+	my $ts = sprintf "%d", int($tl);
+	$tl = ($tl-int($tl))*60;
+	$ts .= sprintf ":%02d", int($tl);
+
+	$c->{_time_string} = $ts;
+    }
+}
+
+if (-e "$ENV{HOME}/.config/i3blocks/battery.log") {
+    open LOG, ">>", "$ENV{HOME}/.config/i3blocks/battery.log";
+    printf(LOG "%s: %s\n",
+           strftime("%F %T", localtime),
+	   join "", Dumper \%cell,
+	  );
+    close LOG;
+}
+
+my %json = ( # color => $opt_color,
+	     # urgent => "true",
+	     markup => "pango",
+	   );
+
+my $t = delete $cell{"_TOTAL"};
+
+if ($t) {
+    if ($t->{_discharging}) {
+	$json{urgent} = "true" if $t->{PERCENT} <= 5;
+    }
+    
+    if ($state{ONLINE}) {
+	$t->{_icon} = "\x{f1e6}"; # nf-fa-plug
+	$t->{_color} = "#ffff00";
+    }
+    else {
+	$t->{_icon} = ramp($t->{PERCENT},
+			   "\x{f58d}", # nf-mdi-battery_outline
+			   "\x{f579}", # nf-mdi-battery_10
+			   "\x{f57a}", # nf-mdi-battery_20
+			   "\x{f57b}", # nf-mdi-battery_30
+			   "\x{f57c}", # nf-mdi-battery_40
+			   "\x{f57d}", # nf-mdi-battery_50
+			   "\x{f57e}", # nf-mdi-battery_60
+			   "\x{f57f}", # nf-mdi-battery_70
+			   "\x{f580}", # nf-mdi-battery_80
+			   "\x{f581}", # nf-mdi-battery_90
+			   "\x{f578}", # nf-mdi-battery
+			  );
+	$t->{_color} = ramp($t->{PERCENT},
+			    qw{#ff0000 #ffae00 #fff600 #a8ff00 #00ff00});
+    }
+    $t->{_text} = sprintf "%.0f%%", $t->{PERCENT};
+}
+
+# calculate colors and such
+my @cells = sort { $a->{NAME} cmp $b->{NAME} } values %cell;
+for my $c (@cells) {
+    $c->{_icon} = ramp($c->{PERCENT},
+		       "\x{f244}", # nf-fa-battery_0, nf-fa-battery_empty
+		       "\x{f243}", # nf-fa-battery_1, nf-fa-battery_quarter
+		       "\x{f242}", # nf-fa-battery_2, nf-fa-battery_half
+		       "\x{f241}", # nf-fa-battery_3, nf-fa-battery_three_quarters
+		       "\x{f240}", # nf-fa-battery_4, nf-fa-battery_full
+		      );
+
+    if ($c->{_charging}) {
+	$c->{_color} = "#ffff00";
+    }
+    elsif ($c->{_discharging}) {
+	$c->{_color} = ramp($c->{PERCENT},
+			    qw{#ff0000 #ffae00 #fff600 #a8ff00 #00ff00});
+    }
+    else {
+	$c->{_color} = '';
+    }
+
+    $c->{_text} = sprintf "%.0f%%", $c->{PERCENT};
+}
+
+my @std_cells = grep { ! $_->{_dev} } @cells;
+my @dev_cells = grep {   $_->{_dev} } @cells;
+
+# make the full text
+my @full_text;
+my @short_text;
+
+# skip total percentage if cells precent
+$t->{_text} = '' if @std_cells;
+if ($t) {
+    push @full_text, render($t), " ";
+    push @short_text, render($t, 1), " ";
+}
+
+# list all standard cells
+push @full_text, map { render($_), " " } @std_cells;
+push @short_text, map { render($_, 1), " " } @std_cells;
+
+# add the time left
+if ($t->{_time_string}) {
+    push @full_text, sprintf "(%s)", $t->{_time_string};
+    push @short_text, sprintf "(%s)", $t->{_time_string}
+}
+
+# add all other devices
+if (@dev_cells) {
+    push @full_text, " ", [ { color => "#888888" }, "[" ];
+    push @full_text, map { render($_), " " } @dev_cells;
+    pop @full_text;
+    push @full_text, [ { color => "#888888" }, "]" ];
+
+    push @short_text, " ", [ { color => "#888888" }, "[" ];
+    push @short_text, map { render($_, 1), " " } @dev_cells;
+    pop @short_text;
+    push @short_text, [ { color => "#888888" }, "]" ];
+}
+
+# populate json
+$json{full_text} = flatten({}, @full_text);
+$json{short_text} = flatten({}, @short_text);
+
+for (qw{full_text full_text}) {
+    for ($json{$_}) {
+	s/^\s*//;
+	s/\s*$//;
+	s/\(\s+/(/g;
+	s/\s+\)/)/g;
+    }
+}
+
+printf "%s\n", json(%json);
+
+exit 0;
+
+sub json {
+    my(%json) = @_;
+    for (values %json) {
+	s/"/\\"/g;
+	s/\n/\\n/g;
+	$_ = qq{"$_"} if /\D/;
+    }
+    return "{".join(",",map {qq{"$_":$json{$_}}} sort keys %json)."}";
+}
+
+sub ramp {
+    my($pct,@ramp) = @_;
+    return $ramp[0] unless @ramp > 1;
+    my($block_size) = 100/$#ramp;
+    $pct += $block_size/2;
+    $ramp[$pct/$block_size];
+}
+
+sub span {
+    my($t,%params) = @_;
+    return unless length $t;
+    my @params = map { sprintf "%s='%s'", $_, $params{$_} }
+      grep { length $params{$_} } keys %params;
+    return $t unless @params;
+    return sprintf("<span %s>%s</span>", join(" ", @params), $t);
+}
+
+sub flatten {
+    my($params, @elements) = @_;
+    my $ret = "";
+    for my $e (@elements) {
+	if (ref $e) {
+	    my $p = shift @$e;
+	    my %p = %$params;
+	    for (keys %$p) {
+		$p{$_} = $p->{$_} if defined $p->{$_};
+	    }
+	    my $t = flatten(\%p, @$e);
+	    for (keys %$params) {
+		delete $p{$_} if $p{$_} eq $params->{$_};
+	    }
+	    $e = span($t, %p);
+	}
+#	$ret .= " " if length($ret) && length($e);
+	$ret .= $e;
+    }
+    for ($ret) {
+	s/^\s*//;
+	s/\s*$//;
+    }
+    return $ret;
+}
+
+sub render {
+    my($c, $short) = @_;
+    my $ret = "";
+
+    return [
+	    { color => $c->{_color} },
+	    [ { #font_desc => 'DejaVuSansMono Nerd Font, FontAwesome',
+	      },
+	      [ { color => $c->{type_color},
+		},
+		$c->{type_icon},
+	      ],
+	      " ",
+	      $c->{_icon},
+	    ],
+	    " ",
+	    $short ? "" : $c->{_text},
+	   ];
+}

@@ -1,0 +1,199 @@
+#! /usr/bin/perl -CASDL
+
+use strict;
+use utf8;
+
+use POSIX;
+use File::Glob ':bsd_glob';
+use Getopt::Long qw(GetOptionsFromString :config bundling no_ignore_case);
+
+use Data::Dumper;
+$Data::Dumper::Sortkeys = $Data::Dumper::Indent = 1;
+
+#my $opt_used_color   = "#00ff00";
+my $opt_used_color   = "#005500";
+my $opt_buffer_color = "#0000ff";
+my $opt_cached_color = "#ffff00";
+my $opt_free_color   = "#333333";
+my $opt_swap_color   = "#ff0000";
+
+my $opt_mem_width = 10;
+my $opt_mem_numeric = 1;
+
+my $opt_swap_width = 5;
+my $opt_swap_numeric = 1;
+my $opt_dynamic_swap = 1;
+my $opt_swap_scaled = 1;
+
+GetOptionsFromString($ENV{BLOCK_INSTANCE},
+		     "u|used-color=s" => \$opt_used_color,
+		     "b|buffer-color=s" => \$opt_buffer_color,
+		     "c|cached-color=s" => \$opt_cached_color,
+		     "f|free-color=s" => \$opt_free_color,
+		     "s|swap-color=s" => \$opt_free_color,
+		     "w|width=s" => \$opt_mem_width,
+		     "W|swap-width=s" => \$opt_swap_width,
+		     "S|scaled-swap!" => \$opt_swap_scaled,
+		     "d|dynamic-swap!" => \$opt_dynamic_swap,
+		     "n|numeric-mem!" => \$opt_mem_numeric,
+		     "N|numeric-swap!" => \$opt_swap_numeric,
+		    );
+
+# remember to flush!
+$| = 1;
+
+my @bar_chars = map { chr } 0x2588 .. 0x258f;
+my $bar_chars = @bar_chars;
+
+my $info;
+
+open INFO, "/proc/meminfo";
+while (<INFO>) {
+    if (/^(\S+):\s+(\d+) kB/) {
+	$info->{$1} = $2;
+    }
+}
+close INFO;
+
+$info->{MemUsed} = $info->{MemTotal} - $info->{MemFree};
+$info->{Cached} += $info->{SReclaimable} - $info->{Shmem};
+$info->{MemUsed} -= $info->{Cached};
+#$info->{MemUsed} -= $info->{Buffers};
+
+$info->{SwapUsed} = $info->{SwapTotal} - $info->{SwapFree};
+
+if ($opt_swap_scaled) {
+    $opt_swap_width = int($opt_mem_width * $info->{SwapTotal}/$info->{MemTotal} + 0.5);
+}
+
+my %json = (# color => $opt_color,
+	    # urgent => "true",
+	    markup => "pango",
+	   );
+
+$json{full_text} .= "\x{f85a}";
+
+my($used,$buffers,$cached,$free) =
+  map { $info->{$_}/$info->{MemTotal} * $opt_mem_width * $bar_chars }
+  qw{MemUsed Buffers Cached MemFree};
+#$used -= $cached;
+
+$json{full_text} .= " ".render_bar(
+				   [ $used,    $opt_used_color ],
+				   #[ $buffers, $opt_buffer_color ],
+				   [ $cached,  $opt_cached_color ],
+				   [ $free,    $opt_free_color ],
+				  ) if $opt_mem_width;
+$json{short_text} = $json{full_text};
+
+$json{full_text} .= " ".format_size("%.1f%s", $info->{MemUsed}, 1)
+  if $opt_mem_numeric;
+
+my($swap_use, $swap_free) =
+  map { $info->{$_}/$info->{SwapTotal} * $opt_swap_width * $bar_chars }
+  qw{SwapUsed SwapFree};
+
+if ($opt_swap_width && (!$opt_dynamic_swap || $swap_use)) {
+    for (render_bar(
+		    [ $swap_use,  $opt_swap_color ],
+		    [ $swap_free, $opt_free_color ],
+		   )) {
+	$json{full_text}  .= " $_";
+	$json{short_text} .= " $_";
+    }
+}
+if (!$opt_dynamic_swap || $info->{SwapUsed}) {
+    $json{full_text} .= " ".format_size("%.1f%s", $info->{SwapUsed}, 1)
+      if $opt_swap_numeric;
+}
+
+printf "%s\n", json(%json);
+
+exit 0;
+
+sub json {
+    my(%json) = @_;
+    for (values %json) {
+	s/"/\\"/g;
+	s/\n/\\n/g;
+	$_ = qq{"$_"} if /\D/;
+    }
+    return "{".join(",",map {qq{"$_":$json{$_}}} sort keys %json)."}";
+}
+
+sub format_size {
+    my($fmt, $size, $index) = @_;
+    while ($size > 900) {
+	$index++;
+	$size /= 1024;
+    }
+    return sprintf $fmt, $size, ('', qw(k M G T P E))[$index];
+}
+
+sub render_bar {
+    my @bar_parts = @_;
+    my($tot,$last_w,$last_c,$last_r,@bar);
+    my $bar = "";
+
+    for my $part (@bar_parts) {
+	my($size,$color) = @$part;
+	$tot += $size;
+	my $pos = int($tot + 0.5);
+	my $bs  = $pos - $last_w * $bar_chars;
+
+	next unless $bs > 0;
+
+	if ($last_r) {
+	    push @bar, [ $bar_chars[-$last_r], $last_c, $color ];
+	    $last_w++;
+	    $bs -= $bar_chars - $last_r;
+	    $last_r = 0;
+	}
+
+	if ($bs>0) {
+	    my $whole = int($bs / $bar_chars);
+	    if ($whole) {
+		push @bar, [ $bar_chars[0] x $whole, $color ];
+		$last_w += $whole;
+		$bs -= $whole * $bar_chars;
+	    }
+	}
+
+	$last_r = $bs;
+	$last_c = $color;
+    }
+
+    for my $b (@bar) {
+	my($s,$fg,$bg) = @$b;
+	$bg ||= $fg;
+	$bar .= "<span";
+	$bar .= sprintf qq{ color='%s'}, $fg if defined $fg;
+	$bar .= sprintf qq{ background='%s'}, $bg if defined $bg;
+	$bar .= sprintf qq{>%s</span>}, $s;
+    }
+
+    return $bar;
+}
+
+__END__
+
+$json{full_text} .=
+  sprintf(qq{ <span color='%s' background='#333333'>%s</span>},
+		  # $pct > 80 ? "#ff0000" : $pct > 50 ? "#ffff00" : "#00ff00",
+		  ramp($pct, qw{ #00ff00 #a8ff00 #fff600 #ffae00 #ff0000 }),
+		  ramp($pct,
+		       " ",
+		       map { chr } 0x2581 .. 0x2588,
+		      ),
+		 );
+    }
+    printf "%s\n", json(%json);
+}
+
+sub ramp {
+    my($pct,@ramp) = @_;
+    return $ramp[0] unless @ramp > 1;
+    my($block_size) = 100/$#ramp;
+    $pct += $block_size/2;
+    $ramp[$pct/$block_size];
+}

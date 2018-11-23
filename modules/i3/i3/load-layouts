@@ -1,0 +1,11 @@
+#! /bin/bash
+
+shopt -s nullglob
+
+for file in $HOME/.config/i3/workspace-*.layout; do
+    workspace=${file%.layout}
+    workspace=${workspace##*workspace-}
+
+    i3-msg "workspace number $workspace; append_layout $file"
+
+done

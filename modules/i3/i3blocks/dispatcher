@@ -1,0 +1,10 @@
+#! /bin/bash
+
+if [ -x $HOME/.config/i3blocks/blocks/$BLOCK_NAME ]; then
+    exec $HOME/.config/i3blocks/blocks/$BLOCK_NAME "$@"
+elif [ -x /usr/share/i3blocks/$BLOCK_NAME ]; then
+    exec /usr/share/i3blocks/$BLOCK_NAME "$@"
+else
+    echo "No $BLOCK_NAME"
+    exit 33
+fi
