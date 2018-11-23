@@ -9,7 +9,7 @@ case "$(uname -a)" in
     *)          echo "unknown os"; exit 1;;
 esac
 
-MODULES=(tmux)
+MODULES=(tmux zsh)
 
 # Install prerequisite packages
 if [ "$OS" == "ubuntu" ]; then
