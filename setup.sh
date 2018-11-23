@@ -9,7 +9,7 @@ case "$(uname -a)" in
     *)          echo "unknown os"; exit 1;;
 esac
 
-MODULES=(bin emacs mpv tmux vim zsh)
+MODULES=($OS os-common bin emacs mpv tmux vim zsh)
 if [ "$OS" != "osx" ]; then
     MODULES+=(i3 x11)
 fi

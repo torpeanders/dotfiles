@@ -1,0 +1,1 @@
+cargo ncdu htop build-essential cmake tig silversearcher-ag multitail
