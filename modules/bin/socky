@@ -1,0 +1,528 @@
+#! /usr/bin/perl
+
+use strict;
+use threads;
+use threads::shared;
+
+use Pod::Usage;
+use IO::Socket::INET6;
+use IO::Select;
+use Getopt::Long qw(:config bundling);
+use Time::HiRes qw( gettimeofday );
+use POSIX;
+
+use Data::Dumper;
+
+my $opt_host = undef;
+
+my $opt_socks_port = 1080;	# default socks port
+my $opt_http_port  = 8080;	# default http port
+
+my $opt_help = 0;
+my $opt_verbose = 1;
+
+my $LOG_INFO      = 1;
+my $LOG_VERBOSE   = 2;
+my $LOG_TRANSPORT = 3;
+my $LOG_DEBUG     = 4;
+
+my %bytes_read;
+my %bytes_written;
+
+GetOptions( 'b|bind=s' => \$opt_host,
+	    'p|port=s' => \$opt_socks_port,
+	    'w|web-port=s' => \$opt_http_port,
+	    'v|verbose+' => \$opt_verbose,
+
+	    'h|help' => sub { $opt_help = 1 },
+	    'H|full-help' => sub { $opt_help = 2 },
+	  ) or pod2usage(2);
+
+pod2usage(-verbose => $opt_help,
+	  -exitval => 1
+	 ) if $opt_help;
+
+
+my $quit :shared = 0;
+my %errors :shared;
+
+threads->new({ context => 'scalar' },
+	     \&listener, 
+	     $opt_host, $opt_socks_port, 
+	     socks => \&socks_connector
+	    );
+
+# threads->new({ context => 'scalar' },
+# 	     \&listener, 
+# 	     $opt_host, $opt_http_port, 
+# 	     http => \&http_connector
+# 	    );
+
+sleep 2; # just to make threads stable...
+
+while (1) {
+    for my $thr (threads->list) {
+	unless ($thr->is_running) {
+	    my $err  = $thr->join;
+	    die "$err\n" if $err;
+	}
+    }
+    sleep(5);
+}
+
+exit;
+
+# ---
+
+sub listener {
+    my($host,$port,$service,$connector) = @_;
+    my $server = IO::Socket::INET6->new(Listen => 10,
+					LocalAddr => $host,
+					LocalPort => $port,
+					Proto => 'tcp',
+					Type => SOCK_STREAM,
+					ReuseAddr => 1,
+				      );
+    unless ($server) {
+	return sprintf("%s on %s:%d: %s", 
+		       $service, $host || '*',
+		       $port, $!,
+		      );
+    }
+
+    threads->detach;
+
+    printf("Listening (%s on %s:%d)...\n",
+	   $service, $host || '*', $port,
+	  );
+    while (!$quit) {
+	my $client = $server->accept;
+	next unless $client;
+	
+	my $tid = threads->new($connector, $client);
+    }
+    $server->close;
+
+    printf "done ($service).\n";
+}
+
+sub msg ($@) {
+    my($level,$msg,@params) = @_;
+    return unless $opt_verbose >= $level;
+    my($t,$u) = gettimeofday;
+    printf("%s.%06d \e[37m%03d\e[m $msg\n",
+	   strftime("%F %T", localtime $t), $u,
+	   threads->tid,
+	   @params,
+	  );
+}
+
+sub esc ($) {
+    my($msg) = @_;
+    for ($msg) {
+	s/([\0-\037\177-\377])/sprintf "<%02x>", ord $1/ge;
+    }
+    $msg;
+}
+
+sub sread (*$$;$) {
+    my $r;
+    if (defined $_[3]) {
+	$r = sysread $_[0], $_[1], $_[2], $_[3];
+    }
+    else {
+	$r = sysread $_[0], $_[1], $_[2];
+    }
+    $bytes_read{$_[0]} += $r;
+    $r;
+}
+
+sub swrite (*$;$$) {
+    my $w;
+    if (defined $_[3]) {
+	$w = syswrite $_[0], $_[1], $_[2], $_[3];
+    }
+    elsif (defined $_[2]) {
+	$w = syswrite $_[0], $_[1], $_[2];
+    }
+    else {
+	$w = syswrite $_[0], $_[1];
+    }
+    $bytes_written{$_[0]} += $w;
+    $w;
+}
+
+sub nread (*$) {
+    my($fh,$bytes) = @_;
+    my($buf,$r);
+    my $i = 0;
+
+    while ($bytes > 0) {
+	$r = sread $fh, $buf, $bytes, $i;
+	return unless defined $r; # sread failed
+	last unless $r; # EOF
+	$i += $r;
+	$bytes -= $r;
+    }
+    msg $LOG_DEBUG, "<N< [%s]", esc $buf;
+    return $buf;
+}
+
+sub pread (*$;$) {
+    my($sock,$template,$bytes) = @_;
+    $bytes ||= length pack $template;
+
+    my $buf = nread $sock, $bytes
+      or return;
+
+    my @val = unpack $template, $buf;
+    msg $LOG_DEBUG, "<P< %s = %s", $template, join ",", @val;
+
+    wantarray ? @val : $val[0];
+}
+
+sub zread (*) {
+    my($sock) = @_;
+    my($r,$buf);
+    my $i = 0;
+    my $ret = "";
+
+    while (1) {
+	$r = sread $sock, $buf, 1, $i;
+	return unless defined $r;
+	last unless $r;
+	last if $buf eq "\0";
+	$ret .= $buf;
+    }
+    msg $LOG_DEBUG, "<Z< [%s]<00>", esc $buf;
+    $ret;
+}
+
+sub socks_connector {
+    my($sock) = @_;
+    my($rsock);
+
+    threads->detach;
+
+    my $domain = AF_UNSPEC;
+
+    if (length($sock->peeraddr) == 4) { # client is IPv4?
+	$domain = AF_INET; # Restrict to IPv4
+    }
+
+    msg $LOG_INFO, "\e[33m<<\e[m Client connected: %s", $sock->peerhost;
+
+    my($version) = pread $sock, "C" or return;
+
+    if ($version == 5) {
+	my $nmet = pread $sock, "C" or return;
+	my @methods = pread $sock, "C*", $nmet or return;
+	msg $LOG_DEBUG, "   Supporting methods = %s", join ",", @methods;
+
+	if (grep { $_ eq 0 } @methods) {
+	    # Currently we only support method 0 (as does firefox)
+	    my $buf = pack "CC", $version, 0x00;
+	    swrite $sock, $buf;
+	}
+	else {
+	    msg $LOG_INFO, 
+	      "\e[31m>>\e[m No supported method, closing connection";
+	    my $buf = pack "CC", $version, 0xff;
+	    swrite $sock, $buf;
+	    $sock->close;
+	    return;
+	}
+
+	# request: | ver=05h | cmd | RSV | atyp |
+	my($ver,$cmd,$type) = pread $sock, "CCxC";
+
+	my $addr;
+	if ($type == 0x01) { # IPv4
+	    $addr = join ".", pread $sock, "CCCC";
+	}
+	elsif ($type == 0x03) { # domain
+	    my $len = pread $sock, "C";
+	    $addr = nread $sock, $len;
+	}
+	elsif ($type == 0x4) { # IPv6
+	    $addr = join ":", pread $sock, "nnnnnnnn";
+	}
+	else {
+	    return;
+	}
+
+	my($port) = pread $sock, "n";
+
+	msg $LOG_INFO, "\e[33m<<\e[m SOCKS5 request for %s:%d", $addr, $port;
+
+	if ($cmd == 0x01) { # TCP Connect
+
+	    unless (authenticate($sock,$addr,$port)) {
+		my $buf = pack "CCCCNn", 5, 2, 0, 1, 0, 0;
+		msg $LOG_INFO, "\e[31m>>\e[m Not allowed by ruleset";
+		swrite $sock, $buf;
+		return;
+	    }
+
+	    $rsock = IO::Socket::INET6->new(PeerAddr => $addr,
+					    PeerPort => $port,
+					    Proto => 'tcp',
+					    Multihomed => 1,
+					    Domain => $domain,
+					   );
+	    unless ($rsock) {
+		my $buf = pack "CCCCNn", 5, 5, 0, 1, 0, 0;
+		msg $LOG_INFO, "\e[31m>>\e[m Denying (fail): %s", $!;
+		swrite $sock, $buf;
+		return;
+	    }
+
+	    my $lport = $rsock->sockport;
+	    my $laddr = $rsock->sockaddr;
+
+	    my $buf = pack "CCCC", 5, 0, 0, length($laddr)==4 ? 1 : 4;
+	    $buf .= $laddr;
+	    $buf .= pack "n", $lport;
+	    msg $LOG_INFO, "\e[32m>>\e[m Accepting %s (%s)", 
+	      $rsock->sockhost, $lport;
+	    swrite $sock, $buf;
+
+	}
+	elsif ($cmd == 0x02) { # TCP Bind
+	    # return "Command not supported"
+	    my $buf = pack "CCCCNn", 5, 7, 0, 1, 0, 0;
+	    msg $LOG_INFO, "\e[31m>>\e[m TCP bind not supported";
+	    swrite $sock, $buf;
+	    return;
+	}
+	elsif ($cmd == 0x03) { # UDP Assoc
+	    # return "Command not supported"
+	    my $buf = pack "CCCCNn", 5, 7, 0, 1, 0, 0;
+	    msg $LOG_INFO, "\e[31m>>\e[m UDP assoc not supported";
+	    swrite $sock, $buf;
+	    return;
+	}
+	else {
+	    # unknown command
+	    return;
+	}
+
+	# ALL OK
+	
+    }
+    elsif ($version == 4) {
+	my $v = "";
+	my($cmd, $port, $ip) = pread $sock, "CnN";
+	my $ident = zread $sock;
+	my $addr;
+
+	if ($ip && $ip < 256) { # 0.0.0.x = 4a
+	    $addr = zread $sock;
+	    $v = "a";
+	}
+	else {
+	    $addr = sprintf "%vd", pack "N";
+	}
+	
+	msg $LOG_INFO, "\e[33m<<\e[m SOCKS4$v request for %s:%d", $addr, $port;
+
+	if ($cmd == 0x01) { # TCP stream
+
+	    unless (authenticate($sock,$addr,$port)) {
+		my $buf = pack "CCnN", 0, 0x5b, 0, 0;
+		msg $LOG_INFO, "\e[31m>>\e[m Not allowed by ruleset";
+		swrite $sock, $buf;
+		return;
+	    }
+
+	    $rsock = IO::Socket::INET->new(PeerAddr => $addr,
+					   PeerPort => $port,
+					   Proto => 'tcp',
+					  );
+	    
+	    unless ($rsock) {
+		# failed
+		my $buf = pack "CCnN", 0, 0x5b, 0, 0;
+		msg $LOG_INFO, "\e[31m>>\e[m Denying (fail): %s", $!;
+		swrite $sock, $buf;
+		return;
+	    }
+
+	    my $lport = $rsock->sockport;
+	    my $laddr = unpack "N", $rsock->sockaddr;
+
+	    my $buf = pack "CCnN", 0, 0x5a, $lport, $laddr;
+	    msg $LOG_INFO, "\e[32m>>\e[m Accepting %s:%d", $laddr, $lport;
+	    swrite $sock, $buf;
+	}
+	elsif ($cmd == 0x02) { # TCP bind
+
+	    # we dont support binding, so reject...
+	    my $buf = pack "CCnN", 0, 0x5b, 0, 0;
+	    msg $LOG_INFO, "\e[31m>>\e[m TCP bind not supported";
+	    swrite $sock, $buf;
+
+	    return;
+	}
+	else {
+	    # unknown command
+	    return;
+	}
+
+	# ALL OK
+
+    }
+    else {
+	# Unknown version, just bail
+	return;
+    }
+
+    my $mux = IO::Select->new($sock, $rsock);
+
+  LOOP:
+    while (my @ready = $mux->can_read) {
+	for my $src (@ready) {
+	    my($dst,$dir,$col);
+	    if ($src == $sock) {
+		$dst = $rsock;
+		$dir = "<-";
+		$col = 36;
+	    }
+	    else {
+		$dst = $sock;
+		$dir = "->";
+		$col = 35;
+	    }
+
+	    my $buf;
+	    my $read = sread $src, $buf, 16*1024;
+
+	    if ($opt_verbose >= $LOG_TRANSPORT) {
+		my @lines = split /\r?\n/, $buf, -1;
+		pop @lines unless length $lines[-1];
+		for my $line (@lines) {
+		    msg $LOG_TRANSPORT, "\e[${col}m$dir\e[m %s", esc $line;
+		}
+	    }
+	    elsif ($opt_verbose >= $LOG_VERBOSE) {
+		while ($buf =~ /^((GET|POST).*)$/mg) {
+		    msg $LOG_VERBOSE, "\e[${col}m$dir\e[m %s", $1;
+		}
+	    }
+
+	    last LOOP unless $read;
+
+	    my $written = 0;
+	    do {
+		$written += swrite $dst, $buf, $read-$written, $written;
+	    } while ($written < $read);
+
+	}
+    }
+
+    msg($LOG_INFO, "\e[33m**\e[m done. %d+%d read, %d+%d written.",
+	$bytes_read{$sock}, $bytes_read{$rsock},
+	$bytes_written{$sock}, $bytes_written{$rsock},
+       );
+}
+
+sub http_connector {
+    my($sock) = @_;
+    threads->detach;
+
+    local $/ = "\r\n";
+
+    printf "> Connected\n";
+    while (<$sock>) {
+	chomp;
+	printf $sock "[%s]\n", reverse $_;
+    }
+    printf "> Done.\n";
+}
+
+sub authenticate {
+    my($sock,$addr,$port) = @_;
+
+    1;
+}
+
+__END__
+
+SOCKS5 Authentication methods:
+| num   | method                |
+|-------+-----------------------|
+| 00    | No Authentication     |
+| 01    | GSSAPI                |
+| 02    | Username/Password     |
+| 03-7F | IANA                  |
+| 80-FE | Private               |
+| FF    | No acceptable methods |
+
+=head1 NAME
+
+socky - a socks proxy with web authentication
+
+=head1 SYNOPSIS
+
+B<socky>
+[B<-a> I<address>]
+[B<-p> I<port>]
+[B<-w> I<port>]
+[B<-v>]
+
+=head1 OPTIONS
+
+=over
+
+=item B<-a>, B<--bind-address> I<address>
+
+Specifies the address to bind to when setting up the port to listen to.
+Default is any interface, so use this if you only want to listen on a
+specified interface.
+
+=item B<-p>, B<--port> I<port>
+
+Specifies the port used to listen for connections. Default is the standards
+SOCKS port B<1080>.
+
+=item B<-w>, B<--web-port> I<port>
+
+Specifies the port to use for the web interface. This is only used for
+internal redirects, but defaults to B<8080>.
+
+=item B<-v>, B<--verbose>
+
+Increase verbosity, can be specified more than once.
+
+=item B<-h>, B<--help>
+
+Displays help
+
+=item B<-H>, B<--full-help>
+
+Display the full man-page of this program.
+
+=back
+
+=head1 DESCRIPTION
+
+B<socky> is a simple SOCKS proxy with web authentication.  It blocks all
+requests up until the first http request, which it hijacks and redirects to
+the authentication 
+
+
+=head1 AUTHOR
+
+ Peder Strat <peder@ninja.no>
+
+=cut
+
+iptables -N socks
+iptables -A INPUT -i eth0 -p tcp --dport 1080 -j socks
+iptables -A socks -j REJECT --reject-with icmp-port-unreachable
+iptables -I socks 1 -s 84.209.199.5 -j ACCEPT
+
+ip6tables -N socks
+ip6tables -A INPUT -i eth0 -p tcp --dport 1080 -j socks
+ip6tables -A socks -j REJECT --reject-with icmp6-port-unreachable
+ip6tables -I socks 1 -s 2a02:fe0:cf14:10:2869:cb3c:59da:53be -j ACCEPT

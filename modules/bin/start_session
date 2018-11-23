@@ -1,0 +1,40 @@
+#!/bin/bash
+
+
+export auto_proxy=""
+export no_proxy="localhost,127.*,10.*,192.168.*,169.254.*"
+
+case "$DESKTOP_SESSION" in
+    i3)
+	      echo "maybe start polkit agent"
+        #polkit_kde="/usr/lib/x86_64-linux-gnu/libexec/polkit-kde-authentication-agent-1"
+        #if [ -f "$polkit_kde" ]; then
+        #    echo "Starting kde auth agent"
+        #   "$polkit_kde" &
+        #fi
+        ;;
+esac
+
+msg() {
+    local template="$1"; shift
+    printf "$template\n" ${1+"$@"} >&2
+}
+
+shopt -s nullglob
+
+setxkbmap -option 'caps:escape'
+setxkbmap no
+
+case "$DESKTOP_SESSION" in
+    *i3)
+        num_displays=$(xrandr -q | grep ' connected' | wc -l)
+        msg "setup i3 for $num_displays displays"
+        $HOME/bin/xsetup.sh $num_displays
+        ;;
+    *)
+        msg "skip dpi voodoo for desktop session: $DESKTOP_SESSION"
+        ;;
+esac
+
+msg "= Running session [$*]..."
+exec "$@"

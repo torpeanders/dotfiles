@@ -1,0 +1,243 @@
+#! /bin/bash
+
+autossh_fallback_port=22022
+
+prog_autossh=
+opts_autossh=
+# Debian/ubuntu has a wrapper in /usr/bin... and we want the binary
+for prog in /usr/lib/autossh/autossh /usr/bin/autossh; do
+    if [ -x "$prog" ]; then
+	prog_autossh="$prog"
+	opts_autossh=fM:V
+	break
+    fi
+done
+
+# opts_ssh=1246aAb:c:CD:e:  fF:g i:  k l:L:m:MnNo:O:p:q  R:sS:tTvVw:  xX Y [4.3p2]
+# opts_ssh=1246aAb:c:CD:e:  fF:g i:I:kKl:L:m:MnNo:O:p:q  R:sS:tTvVw:W:xXyY [5.3p1]
+# opts_ssh=1246aAb:c:CD:e:  fF:g i:I:kKl:L:m:MnNo:O:p:q  R:sS:tTvVw:W:xXyY [5.5p1]
+# opts_ssh=1246aAb:c:CD:e:E:fF:g i:I:kKl:L:m:MnNo:O:p:qQ:R:sS:tTvVw:W:xXyY [6.6.1p1]
+# opts_ssh=1246aAb:c:CD:e:E:fF:gGi:I:kKl:L:m:MnNo:O:p:qQ:R:sS:tTvVw:W:xXyY [6.9p1]
+opts_ssh=1246aAb:c:CD:e:E:fF:gGi:I:kKl:L:m:MnNo:O:p:qQ:R:sS:tTvVw:W:xXyY
+
+opt_version=
+opt_help=
+
+autossh_opts=()
+autossh_seen_M=
+
+ssh_opts=()
+ssh_divider=()
+ssh_hosts=()
+ssh_resolved=
+
+if [ -z "$1" ]; then
+    opt_help=1
+else
+    opt_done=
+    while [ -z "$opt_done" ]; do
+	OPTIND=1
+	while getopts :Vh$opts_autossh$opts_ssh OPT; do
+	    case $OPT in
+
+		# -- this script
+		h)
+		    opt_help=1
+		    ;;
+		V)
+		    opt_version=1
+		    ;;
+
+		'?')
+		    echo $"Unknown option -$OPTARG" >&2
+		    exit 1
+		    ;;
+
+		':')
+		    echo $"Missing parameter to -$OPTARG" >&2
+		    exit 1
+		    ;;
+
+		# -- autossh
+		f)
+		    if [ -n "$prog_autossh" ]; then
+			autossh_opts+=("-$OPT")
+		    else
+			ssh_opts+=("-$OPT")
+		    fi
+		    ;;
+		M)
+		    if [ -n "$prog_autossh" ]; then
+			autossh_opts+=("-$OPT" "$OPTARG")
+			autossh_seen_M=1
+		    else
+			ssh_opts+=("-$OPT")
+		    fi
+		    ;;
+
+		# -- ssh
+		[1246aACfgGkKMnNqstTvVxXyY])
+		    ssh_opts+=("-$OPT")
+		    ;;
+		[bcDeEFiIlLmoOpQRSwW])
+		    ssh_opts+=("-$OPT" "$OPTARG")
+		    ;;
+
+		*)
+		    echo "Unhandled option '$OPT'" >&2
+		    exit 1
+		    ;;
+	    esac
+	done
+
+	# Any options parsed?
+	if [ $OPTIND -gt 1 ]; then
+	    shift $[OPTIND-2]
+	    arg="$1";
+	    shift;
+	    # Was the last one --?
+	    if [ "$arg" == "--" ]; then
+		ssh_divider+=("--")
+		break;
+	    fi
+	fi
+
+	# more parameters?
+	if [ -n "$1" ]; then
+	    arg="$1"
+
+	    case $arg in
+		*@*)
+		    ssh_hosts+=("$arg")
+		    shift
+		    ;;
+		*)
+		    hostname=$(ssh -q -o "ProxyCommand sh -c 'echo %h >&2'" "$arg" 2>&1)
+		    resolved=$(dig +search +short "$hostname")
+		    if [ -z "$resolved" ]; then
+			opt_done=1
+		    else
+			ssh_hosts+=("$arg")
+			ssh_resolved=1
+			shift
+		    fi
+	    esac
+	fi
+
+	# no more? then we are done
+	if [ -z "$1" ]; then
+	    opt_done=1
+	fi
+    done
+fi
+ssh_cmd=("$@")
+
+if [ -n "$opt_help" ]; then
+    [ -n "$prog_autossh" ] && $prog_autossh
+    ssh
+    exit
+elif [ -n "$opt_version" ]; then
+    [ -n "$prog_autossh" ] && $prog_autossh -V
+    ssh -V
+    exit
+fi
+
+port_in_use() {
+    grep -qE "^[ 0-9]+: [[:xdigit:]]+:$(printf "%04X" $1)" /proc/net/tcp{,6}
+}
+
+#echo " auto:  " "${autossh_opts[@]}"
+#echo " ssh:   " "${ssh_opts[@]}"
+#echo " div:   " "${ssh_divider[@]}"
+#echo " hosts: " "${ssh_hosts[@]}"
+#echo " @:     " "$@"
+
+if [ "${#ssh_hosts[@]}" -gt 1 ]; then
+
+    target=multi-ssh-$$
+
+    cmd_opts=()
+    cmd_args=()
+    for c in "${autossh_opts[@]}" "${ssh_opts[@]}"; do
+	cmd_opts+=($(printf "%q" "$c"))
+    done
+    for c in "${ssh_divider[@]}" "${ssh_cmd[@]}"; do
+	cmd_args+=($(printf "%q" "$c"))
+    done
+
+    set "${ssh_hosts[@]}"
+
+    host="$1"; shift
+
+    if [ -z "$TMUX" ]; then
+	tmux new-session -d -s "$target" -n "$target" \
+	     "AUTOSSH_GATETIME=0 $0 ${cmd_opts[*]} $host ${cmd_args[*]}"
+    else
+	tmux new-window -n "$target" \
+	     "AUTOSSH_GATETIME=0 $0 ${cmd_opts[*]} $host ${cmd_args[*]}"
+    fi
+
+    #tmux bind-key K kill-window
+    #tmux set-option -t ":$target" remain-on-exit on
+
+    for host in "$@"; do
+	tmux split-window -t ":$target" -h \
+	     "AUTOSSH_GATETIME=0 $0 ${cmd_opts[*]} $host ${cmd_args[*]}"
+    done
+    tmux select-layout -t ":$target" tiled #> /dev/null
+
+    tmux select-pane -t ":$target"
+    tmux set-window-option -t ":$target" synchronize-panes on #>/dev/null
+
+    if [ -z "$TMUX" ]; then
+	tmux attach-session -d -t ":$target"
+    fi
+
+else
+    cmd=()
+    for c in "${ssh_cmd[@]}"; do
+	cmd+=($(printf "%q" "$c"))
+    done
+
+    if [ -n "$prog_autossh" ]; then
+
+	if [ -n "$prog_autossh" -a -n "$ssh_resolved" ]; then
+	    export AUTOSSH_GATETIME=${AUTOSSH_GATETIME:-0}
+	fi
+
+	if [ -z "$autossh_seen_M" ] && [ -z "$AUTOSSH_PORT" ]; then
+	    # figure out a port to use
+	    portguess=
+	    for t in {1..42}; do
+		randport=$[ (RANDOM | 0x8000) & 0xFFFE ]
+		port_in_use $randport && continue
+		port_in_use $[randport+1] && continue
+		portguess=$randport
+		break
+	    done
+	    if [ -z "$portguess" ]; then
+		if port_in_use $autossh_fallback_port ||
+			port_in_use $[autossh_fallback_port+1]; then
+		    echo $"Unable to find a suitable tunnel port for autossh" >&1
+		    exit 1
+		else
+		    portguess=$autossh_fallback_port
+		fi
+	    fi
+	    export AUTOSSH_PORT=$portguess
+	fi
+
+	exec $prog_autossh \
+	     "${autossh_opts[@]}" -- \
+	     "${ssh_opts[@]}" \
+	     "${ssh_hosts[@]}" \
+	     "${ssh_divider[@]}" \
+	     "${cmd[@]}"
+    else
+	exec ssh \
+	    "${ssh_opts[@]}" \
+	    "${ssh_hosts[@]}" \
+	    "${ssh_divider[@]}" \
+	    "${cmd[@]}"
+    fi
+fi

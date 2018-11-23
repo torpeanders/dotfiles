@@ -1,0 +1,4 @@
+#!/usr/bin/env zsh
+
+echo "Setting zsh as default shell..."
+chsh -s /bin/zsh
