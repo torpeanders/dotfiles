@@ -16,14 +16,22 @@ fi
 
 # Install prerequisite packages
 if [ "$OS" == "ubuntu" ]; then
-    for MODULE in "${MODULES[@]}"; do
-        cat modules/$MODULE/packages.apt 2>/dev/null
-    done | sort -u | sudo xargs apt install -y
+    PKG=($(for MODULE in "${MODULES[@]}"; do
+               cat modules/$MODULE/packages.apt 2>/dev/null
+           done))
+    if [ -n "${PKG[*]}" ]; then
+        sudo apt install -y "${PKG[@]}"
+        echo " "
+    fi
 else
-    brew update
-    for MODULE in "${MODULES[@]}"; do
-        cat modules/$MODULE/packages.brew 2>/dev/null
-    done | sort -u | brew install
+    PKG=($(for MODULE in "${MODULES[@]}"; do
+               cat modules/$MODULE/packages.brew 2>/dev/null
+               echo " "
+           done))
+    if [ -n "${PKG[*]}" ]; then
+        brew update
+        brew install "${PKG[@]}"
+    fi
 fi
 
 # Run module setup scripts
