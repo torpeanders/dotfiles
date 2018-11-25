@@ -18,10 +18,10 @@ fi
 if [ "$OS" == "ubuntu" ]; then
     PKG=($(for MODULE in "${MODULES[@]}"; do
                cat modules/$MODULE/packages.apt 2>/dev/null
+               echo " "
            done))
     if [ -n "${PKG[*]}" ]; then
         sudo apt install -y "${PKG[@]}"
-        echo " "
     fi
 else
     PKG=($(for MODULE in "${MODULES[@]}"; do
