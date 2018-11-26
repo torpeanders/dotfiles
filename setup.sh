@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 # Check os
 case "$(uname -a)" in
     *Ubuntu*)   OS="ubuntu";;
