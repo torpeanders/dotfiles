@@ -1,15 +1,12 @@
 #!/bin/bash
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-SPC="$HOME/.emacs.d"
-
-# Spacemacs setup
-if [ ! -d "$SPC" ]; then
-    echo "installing spacemacs..."
+SPC=$DIR/.spacemacs.d
+if [ ! -e $SPC ]; then
     git clone git@github.com:syl20bnr/spacemacs.git "$SPC" -b develop
 fi
 
-ln -fs "${DIR}"/.spacemacs "$HOME"/
+ln -fs $SPC ~/.emacs.d
 
-# Spacemacs:
+ln -fs "${DIR}"/.spacemacs "$HOME"/
 ln -fs "$DIR"/{defuns,config,site-lisp} "$HOME"/.emacs.d/
