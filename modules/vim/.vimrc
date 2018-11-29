@@ -1,22 +1,22 @@
 set nocompatible
 filetype off
 
-" Vundle init code
-set rtp+=~/.vim/bundle/Vundle.vim
-call vundle#begin()
-Plugin 'VundleVim/Vundle.vim'
+" Install vim-plug
+if empty(glob('~/.vim/autoload/plug.vim'))
+  silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs
+    \ https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+  autocmd VimEnter * PlugInstall --sync | source $MYVIMRC
+endif
 
-" Plugin list
-Plugin 'itchyny/lightline.vim'
-Plugin 'sheerun/vim-polyglot'
-Plugin 'junegunn/fzf'
-Plugin 'junegunn/fzf.vim'
-Plugin 'embear/vim-localvimrc'
-Plugin 'christoomey/vim-tmux-navigator'
-
-" All of your Plugins must be added before the following line
-call vundle#end()            " required
-filetype plugin indent on    " required
+" vim-plug init code
+call plug#begin('~/.vim/plugged')
+Plug 'itchyny/lightline.vim'
+Plug 'sheerun/vim-polyglot'
+Plug 'junegunn/fzf'
+Plug 'junegunn/fzf.vim'
+Plug 'embear/vim-localvimrc'
+Plug 'christoomey/vim-tmux-navigator'
+call plug#end()
 
 set breakindent
 set autoindent
