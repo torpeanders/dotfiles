@@ -12,7 +12,9 @@ endif
 call plug#begin('~/.vim/plugged')
 Plug 'itchyny/lightline.vim'
 Plug 'sheerun/vim-polyglot'
-Plug 'junegunn/fzf'
+Plug 'tpope/vim-fugitive', { 'on': 'Gstatus' }
+"Plug 'junegunn/fzf'
+Plug '~/.fzf'
 Plug 'junegunn/fzf.vim'
 Plug 'embear/vim-localvimrc'
 Plug 'christoomey/vim-tmux-navigator'
