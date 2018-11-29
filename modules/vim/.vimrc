@@ -18,6 +18,7 @@ Plug '~/.fzf'
 Plug 'junegunn/fzf.vim'
 Plug 'embear/vim-localvimrc'
 Plug 'christoomey/vim-tmux-navigator'
+Plug 'Valloric/YouCompleteMe', { 'do': './install.py --clang-completer' }
 call plug#end()
 
 set breakindent
