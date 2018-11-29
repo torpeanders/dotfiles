@@ -19,6 +19,7 @@ Plug 'junegunn/fzf.vim'
 Plug 'embear/vim-localvimrc'
 Plug 'christoomey/vim-tmux-navigator'
 Plug 'Valloric/YouCompleteMe', { 'do': './install.py --clang-completer' }
+Plug 'rafi/awesome-vim-colorschemes'
 call plug#end()
 
 set breakindent
@@ -42,6 +43,9 @@ nnoremap <leader>. :lcd %:p:h<CR>
 
 " To fix that lightline doesn't show up
 set laststatus=2
+
+let g:sierra_Twilight = 1
+colorscheme sierra 
 
 highlight ColorColumn ctermbg=red
 call matchadd('ColorColumn', '\%81v', 100)
