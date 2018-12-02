@@ -1,6 +1,8 @@
 set nocompatible
 filetype off
 
+let g:os = substitute(system('uname'), '\n', '', '')
+
 " Install vim-plug
 if empty(glob('~/.vim/autoload/plug.vim'))
   silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs
@@ -18,7 +20,9 @@ Plug '~/.fzf'
 Plug 'junegunn/fzf.vim'
 Plug 'embear/vim-localvimrc'
 Plug 'christoomey/vim-tmux-navigator'
-Plug 'Valloric/YouCompleteMe', { 'do': './install.py --clang-completer' }
+if g:os == "Linux"
+    Plug 'Valloric/YouCompleteMe', { 'do': './install.py --clang-completer' }
+endif
 Plug 'rafi/awesome-vim-colorschemes'
 call plug#end()
 
