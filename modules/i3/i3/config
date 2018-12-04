@@ -126,7 +126,6 @@ bar {
 assign [class="Emacs"] 1
 assign [class="Emacs25"] 1
 assign [class="Google-chrome"] 3
-assign [class="Vivaldi-stable"] 3
 assign [class="Firefox"] 3
 assign [class="Thunderbird"] 4
 assign [class="QtCreator"] 2
