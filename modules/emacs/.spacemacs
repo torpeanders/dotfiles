@@ -536,11 +536,6 @@ before packages are loaded."
         #'magit-display-buffer-fullframe-status-v1)
   (setq ediff-window-setup-function 'ediff-setup-windows-plain)
   (setq ediff-split-window-function 'split-window-horizontally)
-  ;; => rtags
-  ;;(use-package ivy-rtags
-  ;;  :ensure t
-  ;;  :config
-  ;;  (setq rtags-display-result-backend 'ivy))
 
   ;; => code style
   (anr/normal-c-mode-offset)
