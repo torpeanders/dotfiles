@@ -50,8 +50,8 @@ antigen theme denysdovhan/spaceship-prompt spaceship
 
 SPACESHIP_DIR_COLOR="blue"
 SPACESHIP_GIT_STATUS_DIVERGED="$SPACESHIP_GIT_STATUS_AHEAD$SPACESHIP_GIT_STATUS_BEHIND"
-SPACESHIP_HOST_SHOW="false"
-SPACESHIP_USER_SHOW="false"
+#SPACESHIP_HOST_SHOW="false"
+#SPACESHIP_USER_SHOW="false"
 
 # OS specific plugins
 if [[ $CURRENT_OS == 'OS X' ]]; then
