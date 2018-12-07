@@ -13,6 +13,7 @@
    org-clock-in-switch-to-state nil
                                         ; log
    org-log-note-clock-out t
+   org-duration-format (quote h:mm)
                                         ; time
    org-time-clocksum-use-fractional t
    org-todo-keywords
