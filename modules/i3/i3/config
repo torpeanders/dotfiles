@@ -125,65 +125,15 @@ bar {
 # Force some applications to certain workspaces
 assign [class="Emacs"] 1
 assign [class="Emacs25"] 1
-assign [class="Google-chrome"] 3
-assign [class="Firefox"] 3
-assign [class="Thunderbird"] 4
-assign [class="QtCreator"] 2
-assign [class="Pidgin"] 5
+assign [class="Google-chrome"] 2
+assign [class="Firefox"] 2
+assign [class="Pidgin"] 3
 
 # No window title for Pidgin
 for_window [class="Pidgin"] border pixel
 
 # hide titlebars
 for_window [class="^.*"] border pixel 1
-
-# # mind the gaps
-# gaps inner 5
-# gaps outer 0
-# smart_borders on
-# new_window none
-
-# bindsym $mod+g exec ~/bin/toggle_gaps.sh
-
-# set $mode_gaps gaps
-# set $mode_gaps_outer outer gaps
-# set $mode_gaps_inner inner gaps
-
-# set $mode_gaps Gaps: (o) outer, (i) inner
-# set $mode_gaps_outer Outer Gaps: +|-|0 (local), Shift + +|-|0 (global)
-# set $mode_gaps_inner Inner Gaps: +|-|0 (local), Shift + +|-|0 (global)
-# bindsym $mod+Shift+g mode "$mode_gaps"
-# mode "$mode_gaps" {
-#         bindsym o      mode "$mode_gaps_outer"
-#         bindsym i      mode "$mode_gaps_inner"
-#         bindsym Return mode "default"
-#         bindsym Escape mode "default"
-# }
-
-# mode "$mode_gaps_inner" {
-#         bindsym plus  gaps inner current plus 5
-#         bindsym minus gaps inner current minus 5
-#         bindsym 0     gaps inner current set 0
-
-#         bindsym Shift+plus  gaps inner all plus 5
-#         bindsym Shift+minus gaps inner all minus 5
-#         bindsym Shift+0     gaps inner all set 0
-
-#         bindsym Return mode "default"
-#         bindsym Escape mode "default"
-# }
-# mode "$mode_gaps_outer" {
-#         bindsym plus  gaps outer current plus 5
-#         bindsym minus gaps outer current minus 5
-#         bindsym 0     gaps outer current set 0
-
-#         bindsym Shift+plus  gaps outer all plus 5
-#         bindsym Shift+minus gaps outer all minus 5
-#         bindsym Shift+0     gaps outer all set 0
-
-#         bindsym Return mode "default"
-#         bindsym Escape mode "default"
-# }
 
 # power to the people
 exec --no-startup-id "~/bin/fuzzy_lock.sh init"
