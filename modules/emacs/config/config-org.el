@@ -5,6 +5,9 @@
   :config
   (setq org-src-fontify-natively t)
   (setq
+   org-outline-path-complete-in-steps nil
+   org-goto-interface 'outline-path-completion
+
    org-src-fontify-natively t
    org-agenda-start-on-weekday 1
                                         ; clock
