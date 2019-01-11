@@ -125,9 +125,9 @@ bar {
 # Force some applications to certain workspaces
 assign [class="Emacs"] 1
 assign [class="Emacs25"] 1
-assign [class="Google-chrome"] 2
-assign [class="Firefox"] 2
-assign [class="Pidgin"] 3
+assign [class="Google-chrome"] 3
+assign [class="Firefox"] 3
+assign [class="Pidgin"] 4
 
 # No window title for Pidgin
 for_window [class="Pidgin"] border pixel
