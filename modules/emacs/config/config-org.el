@@ -62,4 +62,9 @@ Clock   In/out^     ^Edit^   ^Summary     (_?_)
     ("?" (org-info "Clocking commands"))
     ))
 
+(require 'config-org-agenda)
+(require 'config-org-capture)
+(require 'config-org-contacts)
+(require 'config-org-protocol)
+
 (provide 'config-org)
