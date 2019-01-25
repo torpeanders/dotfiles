@@ -18,8 +18,8 @@
 	org-agenda-files
 	(mapcar (lambda (file) (expand-file-name file org-directory))
 		(list
-		 "agenda"
-		 "work"
+;;		 "agenda"
+;;		 "work"
 		 "~/Dropbox/org/agenda"
 		 ))
 
