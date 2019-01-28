@@ -9,7 +9,6 @@
    org-goto-interface 'outline-path-completion
 
    org-src-fontify-natively t
-   org-agenda-start-on-weekday 1
                                         ; clock
    org-clock-into-drawer  "CLOCK"
    org-clock-out-when-done t

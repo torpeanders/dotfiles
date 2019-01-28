@@ -20,6 +20,7 @@
 		(list
 ;;		 "agenda"
 ;;		 "work"
+     "~/Dropbox/org/prv_todo.org"
 		 "~/Dropbox/org/agenda"
 		 ))
 
