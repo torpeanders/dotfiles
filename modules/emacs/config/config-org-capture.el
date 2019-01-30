@@ -6,6 +6,8 @@
 (with-demoted-errors
     "Error: init-org-capture: %s"
 
+  (require 'init-org)
+
   ;; (eval-after-load 'org '(require 'org-capture))
 
   (message "+++ Setting up org-capture")
@@ -42,7 +44,13 @@
      ;;          | (function template-function)
      ;; OPTIONS+
      ("t" "Todo" entry (file "agenda/refile.org")
-      "* TODO %?\n  SCHEDULED: %T\n\n  %i\n  %a\n"
+      "* TODO %?\n  SCHEDULED: %t\n\n  %i\n"
+      :clock-in t :clock-resume t :empty-lines 1
+      ;; :kill-buffer
+      )
+
+     ("T" "Todo w/link" entry (file "agenda/refile.org")
+      "* TODO %?\n  SCHEDULED: %t\n\n  %i\n  %a\n"
       :clock-in t :clock-resume t :empty-lines 1
       ;; :kill-buffer
       )
@@ -89,14 +97,23 @@
 	 (concat (mapcar #'(lambda (c) (if (equal c ?[) ?\( (if (equal c ?]) ?\) c))) string-to-transform)))
 
        ;; start emacsclient with -c -F'((name . "org-capture"))'
-       (defun ps:org-capture-delete-capture-frame ()
-	 (let ((name (frame-parameter nil 'name)))
-	   ;; (message "ps:org-capture-delete-capture-frame [%s]" name)
-	   (if (equal name "org-capture")
-	       (delete-frame))))
+       (defun ps:org-capture-delete-capture-frame-unless-refiling ()
+	 (if (not org-capture-is-refiling)
+	     (let ((name (frame-parameter nil 'name)))
+	       (if (equal name "org-capture")
+		   (delete-frame)))))
 
+       (defun ps:org-capture-delete-capture-frame-if-refiling ()
+	 (if org-capture-is-refiling
+	     (let ((name (frame-parameter nil 'name)))
+	       (if (equal name "org-capture")
+		   (delete-frame)))))
+
+       ;; runs after finalization
        (add-hook 'org-capture-after-finalize-hook
-		 #'ps:org-capture-delete-capture-frame)
+		 #'ps:org-capture-delete-capture-frame-unless-refiling)
+       (add-hook 'org-after-refile-insert-hook
+		 #'ps:org-capture-delete-capture-frame-if-refiling)
 
        (defun ps:org-remove-empty-properties ()
 	 (interactive)
@@ -104,6 +121,7 @@
 	   (if (equal (cdr prop) "")
 	       (org-delete-property (car prop)))))
 
+       ;; runs before widening buffer
        (add-hook 'org-capture-prepare-finalize-hook
 		 #'ps:org-remove-empty-properties)
 
@@ -116,8 +134,38 @@
 			     (format-time-string
 			      (cdr org-time-stamp-formats)) 1 -1) "]")))))
 
+       ;; runs on buffer setup
        (add-hook 'org-capture-mode-hook
 		 #'ps:org-add-created-property)
+
+       (defun ps:org-capture-add-help ()
+	 (interactive)
+	 (save-excursion
+	   (goto-char (point-min))
+	   (insert (format "%s Capturing to: %s.\n"
+			   comment-start
+			   (plist-get org-capture-plist :target)
+			   ))))
+
+       (add-hook 'org-capture-mode-hook
+		 #'ps:org-capture-add-help)
+
+       (defun ps:org-capture-remove-help ()
+	 (interactive)
+	 (save-excursion
+	   (goto-char (point-min))
+	   (while (re-search-forward (concat "^" comment-start) (point-max) t)
+	     (delete-region (point-min)
+			    (save-excursion (goto-char (point-min))
+					    (forward-line 1)
+					    (point))))))
+
+       (add-hook 'org-capture-prepare-finalize-hook
+		 #'ps:org-capture-remove-help)
+
+
+
+
 
        ))
   )

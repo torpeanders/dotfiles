@@ -65,5 +65,7 @@ Clock   In/out^     ^Edit^   ^Summary     (_?_)
 (require 'config-org-capture)
 (require 'config-org-contacts)
 (require 'config-org-protocol)
+(require 'config-org-refile)
+(require 'config-org-lunar)
 
 (provide 'config-org)
