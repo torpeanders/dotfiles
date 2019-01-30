@@ -6,8 +6,6 @@
 (with-demoted-errors
     "Error: init-org-capture: %s"
 
-  (require 'init-org)
-
   ;; (eval-after-load 'org '(require 'org-capture))
 
   (message "+++ Setting up org-capture")

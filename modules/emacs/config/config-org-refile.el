@@ -6,8 +6,6 @@
 (with-demoted-errors
     "Error: init-org-refile: %s"
 
-  (require 'init-org)
-
   (message "++ Setting up org-refile")
 
   (setq
