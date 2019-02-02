@@ -198,3 +198,12 @@ If there's no region, the current line will be duplicated."
   (if (region-active-p)
       (kill-ring-save (region-beginning) (region-end))
     (copy-line arg)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Misc defuns
+(defun anr/auto-revert-org-in-dropbox ()
+  (let ((filename (buffer-file-name)))
+    (if (and filename (string-match "/Dropbox/" (buffer-file-name)))
+      (auto-revert-mode))))
+
+(add-hook 'org-mode-hook 'anr/auto-revert-org-in-dropbox)
