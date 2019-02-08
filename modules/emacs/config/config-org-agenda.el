@@ -19,7 +19,6 @@
 	(mapcar (lambda (file) (expand-file-name file org-directory))
 		(list
 		 "agenda"
-		 "work"
      "~/Dropbox/org/prv_todo.org"
 		 "~/Dropbox/org/agenda"
 		 ))
