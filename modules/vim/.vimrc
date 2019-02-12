@@ -20,9 +20,6 @@ Plug '~/.fzf'
 Plug 'junegunn/fzf.vim'
 Plug 'embear/vim-localvimrc'
 Plug 'christoomey/vim-tmux-navigator'
-if g:os == "Linux"
-    Plug 'Valloric/YouCompleteMe', { 'do': './install.py --clang-completer' }
-endif
 Plug 'rafi/awesome-vim-colorschemes'
 call plug#end()
 
