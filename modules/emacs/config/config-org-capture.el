@@ -161,9 +161,14 @@
        (add-hook 'org-capture-prepare-finalize-hook
 		 #'ps:org-capture-remove-help)
 
-
-
-
+       (defun ps:org-capture-add-help ()
+         (interactive)
+         (setq-local header-line-format
+                     (concat header-line-format
+                             (format " -> %s."
+                                     (plist-get org-capture-plist :target)))))
+       (add-hook 'org-capture-mode-hook
+                 #'ps:org-capture-add-help)
 
        ))
   )
