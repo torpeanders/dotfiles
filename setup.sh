@@ -8,9 +8,10 @@ case "$(uname -a)" in
 esac
 
 MODULES=($OS os-common bin emacs mpv tmux vim zsh)
-#if dpkg -l ubuntu-desktop > /dev/null 2>&1; then
-#    MODULES+=(i3 x11)
-#fi
+if dpkg -l ubuntu-desktop > /dev/null 2>&1; then
+    #MODULES+=(i3 x11)
+    MODULES+=(i3)
+fi
 
 # Install prerequisite packages
 if [ "$OS" == "ubuntu" ]; then
