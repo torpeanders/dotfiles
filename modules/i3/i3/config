@@ -169,10 +169,10 @@ bindsym $mod+n exec setxkbmap no
 bindsym $mod+u exec setxkbmap us
 
 # Helpers
-exec --no-startup-id ~/.config/i3/load-layouts
+#exec --no-startup-id ~/.config/i3/load-layouts
 
 # Wallpaper
-exec --no-startup-id "sleep 10 && feh --bg-fill ~/Pictures/wallpaper"
+exec --no-startup-id "sleep 3 && feh --bg-fill ~/Pictures/wallpaper"
 
 # dex will start applications for us
 exec --no-startup-id "dex -ae i3"

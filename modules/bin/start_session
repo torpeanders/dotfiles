@@ -27,9 +27,8 @@ setxkbmap no
 
 case "$DESKTOP_SESSION" in
     *i3)
-        num_displays=$(xrandr -q | grep ' connected' | wc -l)
-        msg "setup i3 for $num_displays displays"
-        $HOME/bin/xsetup.sh $num_displays
+        msg "setup i3"
+        $HOME/bin/xsetup.sh
         ;;
     *)
         msg "skip dpi voodoo for desktop session: $DESKTOP_SESSION"
