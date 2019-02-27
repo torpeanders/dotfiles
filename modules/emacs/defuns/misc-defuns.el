@@ -100,9 +100,9 @@
   "Perform a bunch of operations on the whitespace content of a buffer.
 Including indent-buffer, which should not be called automatically on save."
   (interactive)
-  (anr/untabify-buffer)
-  (delete-trailing-whitespace)
-  (anr/indent-buffer))
+;;  (anr/untabify-buffer)
+;;  (anr/indent-buffer)
+  (delete-trailing-whitespace))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Editing defuns
