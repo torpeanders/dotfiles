@@ -127,7 +127,8 @@ assign [class="Emacs"] 1
 assign [class="Emacs25"] 1
 assign [class="Google-chrome"] 3
 assign [class="Firefox"] 3
-assign [class="Pidgin"] 4
+assign [class="Slack"] 4
+assign [class="Thunderbird"] 5
 
 # No window title for Pidgin
 for_window [class="Pidgin"] border pixel
