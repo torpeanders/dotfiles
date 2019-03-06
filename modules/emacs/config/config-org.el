@@ -40,26 +40,7 @@
                              ("P" org-backward-heading-same-level "prev heading at same level")
                              ("u" outline-up-heading "up heading")
                              ("g" org-goto "goto" :exit t)))
-  ;; hydra - org-clock
-  (bind-key "C-c w" 'hydra-org-clock/body)
-  (defhydra hydra-org-clock (:color blue :hint nil)
-    "
-Clock   In/out^     ^Edit^   ^Summary     (_?_)
------------------------------------------
-        _i_n         _e_dit   _g_oto entry
-        _c_ontinue   _q_uit   _d_isplay
-        _o_ut        ^ ^      _r_eport
-      "
-    ("i" org-clock-in)
-    ("o" org-clock-out)
-    ("c" org-clock-in-last)
-    ("e" org-clock-modify-effort-estimate)
-    ("q" org-clock-cancel)
-    ("g" org-clock-goto)
-    ("d" org-clock-display)
-    ("r" org-clock-report)
-    ("?" (org-info "Clocking commands"))
-    ))
+  )
 
 (require 'config-org-agenda)
 (require 'config-org-capture)
