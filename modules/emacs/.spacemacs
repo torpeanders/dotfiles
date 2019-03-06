@@ -45,8 +45,7 @@ This function should only modify configuration layer settings."
      (cmake :variables
             cmake-enable-cmake-ide-support t)
      (c-c++ :variables
-            c-c++-enable-google-style t
-            c-c++-backend 'rtags)
+            c-c++-enable-google-style t)
      docker
      emacs-lisp
      fasd
@@ -238,7 +237,7 @@ It should only modify the values of Spacemacs settings."
    ;; Default font, or prioritized list of fonts. `powerline-scale' allows to
    ;; quickly tweak the mode-line size to make separators look not too crappy.
    dotspacemacs-default-font '("Source Code Pro"
-                               :size 28
+                               :size 24
                                :weight normal
                                :width normal)
 
