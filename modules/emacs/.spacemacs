@@ -555,6 +555,35 @@ before packages are loaded."
   (global-set-key (kbd "C-c f") 'fasd-find-file)
   (global-set-key (kbd "C-c n") 'anr/cleanup-buffer)
 
+  (key-chord-define-global "WW"
+                           (defhydra hydra-eyebrowse (:color red)
+                             "
+  ^
+  %s(eyebrowse-mode-line-indicator)
+
+  _,_ left window config            _0_ switch to window config
+  _._ right window config           _1_ switch to window config
+  ↦ previous window config  ^^        ...
+  _r_ename current window config    _4_ switch to window config
+  _c_reate new window config
+  _C_lose current window config
+  ^^
+  "
+                             ("q" nil "quit")
+                             ("," eyebrowse-prev-window-config nil)
+                             ("." eyebrowse-next-window-config nil)
+                             ("<tab>" eyebrowse-last-window-config nil)
+                             ("r" eyebrowse-rename-window-config nil)
+                             ("c" eyebrowse-create-window-config nil)
+                             ("C" eyebrowse-close-window-config nil)
+                             ("0" eyebrowse-switch-to-window-config-0 nil)
+                             ("1" eyebrowse-switch-to-window-config-1 nil)
+                             ("2" eyebrowse-switch-to-window-config-2 nil)
+                             ("3" eyebrowse-switch-to-window-config-3 nil)
+                             ("4" eyebrowse-switch-to-window-config-4 nil)
+                             )
+                           )
+
   ;; machine specific setup
   (cond ((file-exists-p "~/.emacs-this-pc.el")
          (load "~/.emacs-this-pc.el")))
