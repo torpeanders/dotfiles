@@ -16,6 +16,13 @@
 (load-file
  (concat (file-name-as-directory site-lisp-dir) "robot-mode.el"))
 
+(define-derived-mode soong-mode
+  javascript-mode "Soong"
+  "Major mode for soong files."
+  :syntax-table nil
+  :abbrev-table nil
+  (setq-local indent-tabs-mode nil)
+  (setq-local js-indent-level 4))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Map extensions to modes
@@ -61,5 +68,6 @@
 (add-to-list 'auto-mode-alist '("\\.dtsi$" . dts-mode))
 (add-to-list 'auto-mode-alist '("\\.pro$" . qt-pro-mode))
 (add-to-list 'auto-mode-alist '("\\.pri$" . qt-pro-mode))
+(add-to-list 'auto-mode-alist '("\\.bp\\'" . soong-mode))
 
 (provide 'config-mode-mappings)
