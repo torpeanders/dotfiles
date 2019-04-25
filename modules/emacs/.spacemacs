@@ -54,6 +54,7 @@ This function should only modify configuration layer settings."
      ivy
      javascript
      ;; markdown
+     multiple-cursors
      org
      pandoc
      pdf
