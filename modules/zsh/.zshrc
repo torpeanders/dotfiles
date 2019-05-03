@@ -131,3 +131,5 @@ zstyle ':completion:*:*' ignored-patterns '*ORIG_HEAD'
 DISABLE_AUTO_TITLE="true"
 
 unsetopt share_history
+
+export EDITOR=vim
