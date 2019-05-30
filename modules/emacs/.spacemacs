@@ -548,6 +548,13 @@ before packages are loaded."
   ;; => code style
   (anr/normal-c-mode-offset)
 
+  (defun maybe-linux-style ()
+    (when (and buffer-file-name
+               (string-match "linux" buffer-file-name))
+      (c-set-style "linux")))
+
+  (add-hook 'c-mode-hook 'maybe-linux-style)
+
   ;; extra keybindings
   (global-set-key (kbd "<f2>") 'bm-toggle)
   (global-set-key (kbd "C-<f2>") 'bm-next)
