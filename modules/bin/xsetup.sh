@@ -1,13 +1,15 @@
 #!/bin/bash
 
-XRANDR_TEMP=$(mktemp -t xrandr.XXXXXX); xrandr > $XRANDR_TEMP
+NUM_DISPLAYS=$(xrandr -q | grep ' connected' | wc -l)
 
-FULL_DPI=($(cat $XRANDR_TEMP | perl -ne 'if (/connected primary (\d+)x(\d+).* (\d+)mm x (\d+)mm/) { $dpi = sqrt($1**2+$2**2)*25.4/sqrt($3**2+$4**2); printf "%d %d", $dpi+.5, ($dpi*1024)+.5 }'))
-
-[ -z "$FULL_DPI" ] && FULL_DPI=($(cat $XRANDR_TEMP | perl -ne 'if (/connected (\d+)x(\d+).* (\d+)mm x (\d+)mm/) { $dpi = sqrt($1**2+$2**2)*25.4/sqrt($3**2+$4**2); printf "%d %d", $dpi+.5, ($dpi*1024)+.5; last }'))
-
-REAL_DPI=${FULL_DPI[0]}
-DPI=${FULL_DPI[1]}
+case "$NUM_DISPLAYS" in
+    2)
+        REAL_DPI=140
+        ;;
+    *)
+        REAL_DPI=140
+        ;;
+esac
 
 file=$HOME/.Xresources
 
